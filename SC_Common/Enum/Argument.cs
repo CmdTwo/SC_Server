@@ -6,5 +6,6 @@
         UserID,
         Value,
         Nickname,
+        Message,
     }
 }

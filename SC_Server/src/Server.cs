@@ -1,10 +1,10 @@
-﻿using System.Threading;
+﻿using System;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.IO;
 using System.Collections.Generic;
 using System.Runtime.Serialization.Formatters.Binary;
-using System;
 
 using SC_Common;
 using SC_Common.Enum;
@@ -20,10 +20,24 @@ namespace SC_Server.src
         private Socket Listener;
         private PackageManager PackageManag;
 
+        private struct UserInfo
+        {
+            public int ID { get; private set; }
+            public string Nickname { get; private set; }
+
+            public UserInfo(int id, string nickname)
+            {
+                ID = id;
+                Nickname = nickname;
+            }
+        }
+        private Dictionary<Socket, UserInfo> UserInfoDict;
+
         public Server()
         {
             PackageManag = new PackageManager();
             PackageManag.HasGotExceptionEvent += ExceptionHandler;
+            UserInfoDict = new Dictionary<Socket, UserInfo>();
         }
 
         public void Start(string ip, int port)
@@ -36,6 +50,8 @@ namespace SC_Server.src
 
             Listener.Bind(ServerEndPoint);
             Listener.Listen(MAX_USERS);
+
+            Console.WriteLine("Server start: " + ip + ":" + port);
 
             Listener.BeginAccept(new AsyncCallback(AcceptCallBack), null);
         }
@@ -65,18 +81,96 @@ namespace SC_Server.src
 
         private void ReceiveCallback(Socket user, PackageArgs package)
         {
-            Console.WriteLine("New package: " + package.Command.ToString() + " | ");
+            Console.WriteLine("New package: " + package.Command.ToString());
 
             switch(package.Command)
             {
+                case (Command.User_Setup): UserSetupHandler(user, package); break;
+                case (Command.Send_Message): UserSendMeesage(user, package); break;
                 case (Command.Exit): CloseUserSocket(user); return;
+                default: Console.WriteLine("Ivalid Package!"); break;
             }
 
             PackageManag.ReceivePackage(user, ReceiveCallback);
         }
+
+        private void UserSendMeesage(Socket sender, PackageArgs package)
+        {
+            foreach (Socket user in UserInfoDict.Keys)
+            {
+                if (user == sender) continue;
+                PackageArgs sendPackage = new PackageArgs()
+                {
+                    PackageType = PackageType.Event,
+                    Event = Event.New_Message,
+                    Arguments = new Dictionary<Argument, object>()
+                    {
+                        { Argument.Message, package.Arguments[Argument.Message] },
+                        { Argument.Nickname, UserInfoDict[sender].Nickname }
+                    }
+                };
+                PackageManag.SendPackage(user, sendPackage, null);
+            }
+        }
+
+        private void UserSetupHandler(Socket sender, PackageArgs package)
+        {
+            UserInfo userInfo = new UserInfo(UserInfoDict.Count,
+                package.Arguments[Argument.Nickname] as string);
+
+            UserInfoDict.Add(sender, userInfo);
+
+            PackageArgs responsePackage = new PackageArgs()
+            {
+                PackageType = PackageType.Command,
+                Command = Command.User_Setup,
+                Arguments = new Dictionary<Argument, object>()
+                {
+                    { Argument.Nickname, package.Arguments[Argument.Nickname] },
+                    { Argument.UserID, userInfo.ID }
+                }
+            };
+
+            PackageManag.SendPackage(sender, responsePackage, null);
+
+
+            //TEMP
+            foreach (Socket user in UserInfoDict.Keys)
+            {
+                if (user == sender) continue;
+                PackageArgs sendPackage = new PackageArgs()
+                {
+                    PackageType = PackageType.Event,
+                    Event = Event.New_User,
+                    Arguments = new Dictionary<Argument, object>()
+                    {
+                        { Argument.Nickname, UserInfoDict[sender].Nickname }
+                    }
+                };
+                PackageManag.SendPackage(user, sendPackage, null);
+            }
+        }
      
         private void CloseUserSocket(Socket userSocket)
         {
+            //TEMP
+            foreach (Socket user in UserInfoDict.Keys)
+            {
+                if (user == userSocket) continue;
+                PackageArgs sendPackage = new PackageArgs()
+                {
+                    PackageType = PackageType.Event,
+                    Event = Event.User_Left,
+                    Arguments = new Dictionary<Argument, object>()
+                    {
+                        { Argument.Nickname, UserInfoDict[userSocket].Nickname }
+                    }
+                };
+                PackageManag.SendPackage(user, sendPackage, null);
+            }
+            //TEMP
+
+            UserInfoDict.Remove(userSocket);
             userSocket.Shutdown(SocketShutdown.Both);
             userSocket.Close();
             Console.WriteLine("User disconnected!");

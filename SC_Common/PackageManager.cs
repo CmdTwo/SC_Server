@@ -9,7 +9,7 @@ namespace SC_Common
     public class PackageManager
     {
         private BinaryFormatter BinFormatter = new BinaryFormatter();
-        private Register LogRegister = new Register();
+        private Register LogRegister = new Register(false);
         public Action<Exception, Socket> HasGotExceptionEvent;
 
         private struct SendState
