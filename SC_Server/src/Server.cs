@@ -58,6 +58,7 @@ namespace SC_Server.src
 
         public void Shutdown()
         {
+            Register.Flush();
             PackageManag.HasGotExceptionEvent -= ExceptionHandler;
             Listener.Close();
         }
@@ -76,6 +77,7 @@ namespace SC_Server.src
             Listener.BeginAccept(new AsyncCallback(AcceptCallBack), null);
 
             ////NEED_TO_UPDATE
+            Register.WriteLog("Accept new connection");
             Console.WriteLine("\n\nConnected new user!");
         }
 

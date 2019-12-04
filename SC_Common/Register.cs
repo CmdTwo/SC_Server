@@ -1,17 +1,17 @@
 ﻿using System;
+using System.Collections.Concurrent;
+using System.Text;
+using System.Threading.Tasks;
 using System.IO;
 
 namespace SC_Common
 {
-    public class Register
+    public static class Register
     {
-        private string FilePath = "Log.txt";
-        public bool IsActive { get; set; }
-        
-        public Register(bool isActive = true)
-        {
-            IsActive = isActive;
-        }
+        private static BlockingCollection<string> LogQuery;
+        private static Task CurrentTask;
+        private static string FilePath = "Log.txt";
+        public static bool IsActive { get; set; } = true;
 
         public enum LogType : byte
         {
@@ -21,19 +21,43 @@ namespace SC_Common
             Error
         }
 
-        public void WriteLog(string message, LogType type = LogType.Normal)
+        static Register()
+        {
+            LogQuery = new BlockingCollection<string>();
+
+            CurrentTask = Task.Factory.StartNew(() =>
+            {
+                using (StreamWriter writer = new StreamWriter(FilePath, true, Encoding.UTF8))
+                {
+                    writer.AutoFlush = true;
+                    foreach (string str in LogQuery.GetConsumingEnumerable())
+                        writer.WriteLine(str);
+                }
+            },
+            TaskCreationOptions.LongRunning);
+        }
+
+
+        public static void WriteLog(string message, LogType type = LogType.Normal)
         {
             if (IsActive)
             {
-                File.AppendAllText(FilePath, DateTime.Now.ToString('|' + "MM/dd/yyyy HH:mm:ss" + '|'));
+                string str = DateTime.Now.ToString('|' + "MM/dd/yyyy HH:mm:ss" + '|');                
                 switch (type)
                 {
                     case (LogType.Normal): break;
-                    case (LogType.Error): File.AppendAllText(FilePath, "::ERROR::"); break;
-                    case (LogType.Warning): File.AppendAllText(FilePath, "!WARNING!"); break;
+                    case (LogType.Error): str += "::ERROR::"; break;
+                    case (LogType.Warning): str += "!WARNING!"; break;
                 }
-                File.AppendAllText(FilePath, " >> " + message + "\n");
+                str += " >> " + message;
+                LogQuery.Add(str);
             }
+        }
+
+        public static void Flush()
+        {
+            LogQuery.CompleteAdding();
+            CurrentTask.Wait();
         }
     }
 }

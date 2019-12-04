@@ -9,7 +9,6 @@ namespace SC_Common
     public class PackageManager
     {
         private BinaryFormatter BinFormatter = new BinaryFormatter();
-        private Register LogRegister = new Register(false);
         public Action<Exception, Socket> HasGotExceptionEvent;
 
         private struct SendState
@@ -69,7 +68,6 @@ namespace SC_Common
             }
         }
 
-
         public void SendPackage(Socket handler, PackageArgs package, 
             Action<Socket, int, bool> hasSendCallback)
         {
@@ -82,7 +80,7 @@ namespace SC_Common
 
             byte[] size = BitConverter.GetBytes(bytes.Length);            
             SendState state = new SendState(handler, bytes, package.GetHashCode(), hasSendCallback);
-            LogRegister.WriteLog("Try send Package. Hash: " + state.PackageHash);
+            Register.WriteLog("Try send Package. Hash: " + state.PackageHash);
             handler.BeginSend(size, 0, size.Length, 0, SendCallback, state);
         }
 
@@ -94,14 +92,14 @@ namespace SC_Common
             if (state.IsSendMode)
             {
                 state.SendBytes += send;
-                LogRegister.WriteLog("Send bytes " + state.SendBytes + " of "
+                Register.WriteLog("Send bytes " + state.SendBytes + " of "
                     + state.Buffer.Length + " (#" + state.PackageHash + ")...");
             }
             else
             {
                 state.IsSendMode = true;
                 state.PackagePartCount = state.Buffer.Length / state.BUFFER_SIZE;
-                LogRegister.WriteLog("Start sending Package (#" + state.PackageHash + ")");
+                Register.WriteLog("Start sending Package (#" + state.PackageHash + ")");
             }
 
             if (state.SendBytes != state.Buffer.Length)
@@ -109,19 +107,13 @@ namespace SC_Common
                 int size = (--state.PackagePartCount <= 0)
                     ? state.Buffer.Length - state.SendBytes : state.BUFFER_SIZE;
 
-
-                LogRegister.WriteLog("Send next part (" + size + " bytes) of Package (#" + state.PackageHash + ")...");
+                Register.WriteLog("Send next part (" + size + " bytes) of Package (#" + state.PackageHash + ")...");
                 state.Handler.BeginSend(state.Buffer, state.SendBytes, size, 0, 
                     new AsyncCallback(SendCallback), state);
-                //int size = state.Buffer.Length - state.SendCount;
-                //if (size / SendState.BUFFER_SIZE >= 1)
-                //    size = SendState.BUFFER_SIZE;
-                //debugBox.Dispatcher.Invoke(() => debugBox.Text += "  " + send + " • " + state.SendCount + "|" + size + "\n");
-
             }
             else
             {
-                LogRegister.WriteLog("Sending Package (#" + state.PackageHash + ") complete!");
+                Register.WriteLog("Sending Package (#" + state.PackageHash + ") complete!");
                 state.HasSendCallback?.Invoke(state.Handler, state.PackageHash, true);
             }
         }
@@ -129,7 +121,7 @@ namespace SC_Common
         public void ReceivePackage(Socket handler, Action<Socket, PackageArgs> callback)
         {
             ReceiveState state = new ReceiveState(handler, callback);
-            LogRegister.WriteLog("Start receiving Packages...");
+            Register.WriteLog("Start receiving Packages...");
             handler.BeginReceive(state.Buffer, 0, SendState.FIRST_PACKAGE_SIZE, 0, 
                 new AsyncCallback(ReceiveCallBack), state);
         }
@@ -146,20 +138,20 @@ namespace SC_Common
                 }
                 catch(Exception ex)
                 {
-                    LogRegister.WriteLog(ex.Message, Register.LogType.Error);
+                    Register.WriteLog(ex.Message, Register.LogType.Error);
                     HasGotExceptionEvent?.Invoke(ex, state.Handler);
                     return;
                 }
 
                 state.ReadBytes += read;
-                LogRegister.WriteLog("Read bytes " + read + " of " + state.PackageSize + "...");
+                Register.WriteLog("Read bytes " + read + " of " + state.PackageSize + "...");
 
                 if (state.ReadBytes != state.PackageSize)
                 {
                     int size = (--state.PackagePartCount <= 0)
                         ? state.PackageSize - state.ReadBytes : state.BUFFER_SIZE;
 
-                    LogRegister.WriteLog("Ready for read next part (" + size + " bytes)");
+                    Register.WriteLog("Ready for read next part (" + size + " bytes)");
 
                     state.Handler.BeginReceive(state.Buffer, state.ReadBytes, size,
                         0, new AsyncCallback(ReceiveCallBack), state);
@@ -173,7 +165,7 @@ namespace SC_Common
                         ms.Position = 0;
                         package = (PackageArgs)BinFormatter.Deserialize(ms);
                     }
-                    LogRegister.WriteLog("Read complete! Package: " + package.PackageType.ToString()
+                    Register.WriteLog("Read complete! Package: " + package.PackageType.ToString()
                         + " | " + (package.PackageType == Enum.PackageType.Command 
                         ? package.Command.ToString() : package.Event.ToString()));
                     state.HasReceivedCallback(state.Handler, package);
@@ -192,13 +184,13 @@ namespace SC_Common
 
                 try
                 {
-                    LogRegister.WriteLog("Begin waiting part of Package (" + state.PackageSize + " bytes)");
+                    Register.WriteLog("Begin waiting part of Package (" + state.PackageSize + " bytes)");
                     state.Handler.BeginReceive(state.Buffer, 0, size, 0,
                         new AsyncCallback(ReceiveCallBack), state);
                 }
                 catch (Exception ex)
                 {
-                    LogRegister.WriteLog(ex.Message, Register.LogType.Error);
+                    Register.WriteLog(ex.Message, Register.LogType.Error);
                     HasGotExceptionEvent?.Invoke(ex, state.Handler);
                     return;
                 }
