@@ -7,6 +7,7 @@
         Send_Message,
         Upload_File,
         Exit,
-        User_Setup
+        User_Setup,
+        Get_Last_Messages
     }
 }

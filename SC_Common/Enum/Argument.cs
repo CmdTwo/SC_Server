@@ -5,7 +5,9 @@
         NaN = 0,
         UserID,
         Value,
-        Nickname,
+        UserName,
         Message,
+        MessageList,
+        MessageObj,
     }
 }

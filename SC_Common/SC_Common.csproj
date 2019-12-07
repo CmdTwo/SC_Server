@@ -41,10 +41,13 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Messages\SystemMessage.cs" />
+    <Compile Include="Messages\UserMessage.cs" />
     <Compile Include="Enum\Command.cs" />
     <Compile Include="Enum\Event.cs" />
     <Compile Include="Enum\PackageType.cs" />
     <Compile Include="Enum\Argument.cs" />
+    <Compile Include="Messages\ChatMessage.cs" />
     <Compile Include="PackageArgs.cs" />
     <Compile Include="PackageManager.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
