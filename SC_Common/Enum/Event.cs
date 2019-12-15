@@ -7,5 +7,7 @@
         New_Message,
         New_PM,
         User_Left,
+        HasBanned,
+        HasKicked
     }
 }

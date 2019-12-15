@@ -12,6 +12,7 @@
         User_Setup,
         Get_Last_Messages,
         IvalidCommand,
-        CommandResponse
+        CommandResponse,
+        CheckBlockIP
     }
 }

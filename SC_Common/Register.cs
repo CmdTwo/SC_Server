@@ -37,7 +37,6 @@ namespace SC_Common
             TaskCreationOptions.LongRunning);
         }
 
-
         public static void WriteLog(string message, LogType type = LogType.Normal)
         {
             if (IsActive)

@@ -43,7 +43,7 @@ namespace SC_Server.src
                 Command reusltOfCmd = defaultCmd;
                 string[] resultOfArgs = null;
 
-                if (parts[0][0] == ControlChars.TextCommand)
+                if (parts[0][0] == ChatCommandHelper.SymbolOfCommand)
                 {
                     reusltOfCmd = Command.IvalidCommand;
                     Enum.TryParse(parts[0].Substring(1), out textCmd);
@@ -64,15 +64,31 @@ namespace SC_Server.src
                                 resultOfArgs = parts.Skip(1).ToArray();
                             }
                             break;
-                        case (TextCommand.ban): break;
-                        case (TextCommand.kick): break;
+                        case (TextCommand.ban):
+                            if (parts.Length >= 3)
+                            {
+                                reusltOfCmd = Command.Ban;
+                                resultOfArgs = parts.Skip(1).ToArray();
+                                resultOfArgs[1] = string.Join(" ", resultOfArgs.Skip(1));
+                                resultOfArgs = resultOfArgs.Take(2).ToArray();
+                            }
+                            break;
+                        case (TextCommand.kick):
+                            if (parts.Length >= 3)
+                            {
+                                reusltOfCmd = Command.Kick;
+                                resultOfArgs = parts.Skip(1).ToArray();
+                                resultOfArgs[1] = string.Join(" ", resultOfArgs.Skip(1));
+                                resultOfArgs = resultOfArgs.Take(2).ToArray();
+                            }
+                            break;
                     }
                 }
 
                 return new ChatCommand(reusltOfCmd, resultOfArgs);
             }
         }
-        private struct UserInfo
+        private class UserInfo
         {
             public int ID { get; private set; }
             public string UserName { get; private set; }
@@ -200,9 +216,10 @@ namespace SC_Server.src
                 case (Command.Get_Last_Messages): GetLastMessages(user); break;
                 case (Command.Authorization): UserAuthorization(user, chatCommand); break;
                 case (Command.Send_PM): UserSendPM(user, chatCommand); break;
-                case (Command.Ban): break;
-                case (Command.Kick): break;
+                case (Command.Ban): ActionOnUser(user, chatCommand); break;
+                case (Command.Kick): ActionOnUser(user, chatCommand); break;
                 case (Command.IvalidCommand): InvalidCommand(user); break;
+                case (Command.CheckBlockIP): CheckBlockIP(user, package); break;
                 case (Command.Exit): CloseUserSocket(user); return;
                 default: Console.WriteLine("Ivalid Package!"); break;
             }
@@ -249,6 +266,22 @@ namespace SC_Server.src
         }
 
         #region Request
+
+        private void CheckBlockIP(Socket sender, PackageArgs package)
+        {
+            PackageArgs sendPackage = new PackageArgs()
+            {
+                PackageType = PackageType.Command,
+                Command = Command.CheckBlockIP,
+                Arguments = new Dictionary<Argument, object>()
+                {
+                    { Argument.IsAdmitted, db.DB_Manager.IPInBlackList
+                    (package.Arguments[Argument.IP] as string) }
+                }
+            };
+
+            PackageManag.SendPackage(sender, sendPackage, null);
+        }
 
         private void UserSendMeesage(Socket sender, PackageArgs package)
         {
@@ -327,6 +360,154 @@ namespace SC_Server.src
             PackageManag.SendPackage(defaultSocket, defaultPackage, null);
         }
 
+        private void BanRequest(Socket sender, ChatCommand command)
+        {
+            PackageArgs sendPackage = new PackageArgs()
+            {
+                PackageType = PackageType.Command,
+                Command = Command.CommandResponse,
+                Arguments = new Dictionary<Argument, object>()
+                    { { Argument.Message, "Invalid username." } }
+            };
+
+            if(UserInfoBySocket[sender].UserModel == null)
+            {
+                sendPackage.Arguments[Argument.Message] = "Access denied.";
+                PackageManag.SendPackage(sender, sendPackage, null);
+            }
+            else if (UserInfoByUserName.ContainsKey(command.Args[0]))
+            {
+                UserInfo bannedUser = UserInfoByUserName[command.Args[0]];
+                IPEndPoint localIP = bannedUser.UserSocket.LocalEndPoint as IPEndPoint;
+
+                db.DB_Manager.AddBlockIP(localIP.Address.ToString(), command.Args[1]);
+
+                sendPackage = new PackageArgs()
+                {
+                    PackageType = PackageType.Event,
+                    Event = Event.HasBanned,
+                    Arguments = new Dictionary<Argument, object>()
+                        { { Argument.Message, command.Args[1] } }                    
+                };
+
+                PackageManag.SendPackage(bannedUser.UserSocket, sendPackage, null);
+
+                PackageArgs broadcastPackage = new PackageArgs()
+                {
+                    PackageType = PackageType.Event,
+                    Event = Event.User_Left,
+                    Arguments = new Dictionary<Argument, object>()
+                    {
+                        { Argument.UserName, bannedUser.UserName }
+                    }
+                };
+
+                BroadcastMessage(broadcastPackage, bannedUser.UserSocket);
+            }
+            else
+            {
+                PackageManag.SendPackage(sender, sendPackage, null);
+            }
+        }
+
+        private void ActionOnUser(Socket sender, ChatCommand command)
+        {
+            PackageArgs sendPackage = new PackageArgs()
+            {
+                PackageType = PackageType.Command,
+                Command = Command.CommandResponse,
+                Arguments = new Dictionary<Argument, object>()
+                    { { Argument.Message, "Invalid username." } }
+            };
+
+            if (UserInfoBySocket[sender].UserModel == null)
+            {
+                sendPackage.Arguments[Argument.Message] = "Access denied.";
+                PackageManag.SendPackage(sender, sendPackage, null);
+            }
+            else if (UserInfoByUserName.ContainsKey(command.Args[0]))
+            {
+                UserInfo user = UserInfoByUserName[command.Args[0]];
+                IPEndPoint localIP = user.UserSocket.LocalEndPoint as IPEndPoint;
+
+                if(command.ParsedCommand == Command.Ban)
+                    db.DB_Manager.AddBlockIP(localIP.Address.ToString(), command.Args[1]);
+
+                sendPackage = new PackageArgs()
+                {
+                    PackageType = PackageType.Event,
+                    Event = (command.ParsedCommand == Command.Ban) ? Event.HasBanned : Event.HasKicked,
+                    Arguments = new Dictionary<Argument, object>()
+                        { { Argument.Message, command.Args[1] } }
+                };
+
+                PackageManag.SendPackage(user.UserSocket, sendPackage, null);
+
+                //PackageArgs broadcastPackage = new PackageArgs()
+                //{
+                //    PackageType = PackageType.Event,
+                //    Event = Event.User_Left,
+                //    Arguments = new Dictionary<Argument, object>()
+                //    {
+                //        { Argument.UserName, user.UserName }
+                //    }
+                //};
+
+                //BroadcastMessage(broadcastPackage, user.UserSocket);
+            }
+            else
+            {
+                PackageManag.SendPackage(sender, sendPackage, null);
+            }
+        }
+
+        //private void KickRequest(Socket sender, ChatCommand command)
+        //{
+        //    PackageArgs sendPackage = new PackageArgs()
+        //    {
+        //        PackageType = PackageType.Command,
+        //        Command = Command.CommandResponse,
+        //        Arguments = new Dictionary<Argument, object>()
+        //            { { Argument.Message, "Invalid username." } }
+        //    };
+
+        //    if (UserInfoBySocket[sender].UserModel == null)
+        //    {
+        //        sendPackage.Arguments[Argument.Message] = "Access denied.";
+        //        PackageManag.SendPackage(sender, sendPackage, null);
+        //    }
+        //    else if (UserInfoByUserName.ContainsKey(command.Args[0]))
+        //    {
+        //        UserInfo kickedUser = UserInfoByUserName[command.Args[0]];
+        //        IPEndPoint localIP = kickedUser.UserSocket.LocalEndPoint as IPEndPoint;
+
+        //        sendPackage = new PackageArgs()
+        //        {
+        //            PackageType = PackageType.Event,
+        //            Event = Event.HasKicked,
+        //            Arguments = new Dictionary<Argument, object>()
+        //                { { Argument.Message, command.Args[1] } }
+        //        };
+
+        //        PackageManag.SendPackage(kickedUser.UserSocket, sendPackage, null);
+
+        //        PackageArgs broadcastPackage = new PackageArgs()
+        //        {
+        //            PackageType = PackageType.Event,
+        //            Event = Event.User_Left,
+        //            Arguments = new Dictionary<Argument, object>()
+        //            {
+        //                { Argument.UserName, kickedUser.UserName }
+        //            }
+        //        };
+        //        BroadcastMessage(broadcastPackage, kickedUser.UserSocket);
+        //    }
+        //    else
+        //    {
+        //        PackageManag.SendPackage(sender, sendPackage, null);
+        //    }
+        //}
+
         private void InvalidCommand(Socket sender)
         {
             PackageArgs responsePackage = new PackageArgs()
@@ -342,38 +523,45 @@ namespace SC_Server.src
 
         private void UserSetupHandler(Socket sender, PackageArgs package)
         {
-            UserInfo userInfo = new UserInfo(UserInfoBySocket.Count,
-                package.Arguments[Argument.UserName] as string, sender);
-
-            UserInfoBySocket.Add(sender, userInfo);
-            UserInfoByUserName.Add(userInfo.UserName, userInfo);
-
             PackageArgs responsePackage = new PackageArgs()
             {
                 PackageType = PackageType.Command,
                 Command = Command.User_Setup,
                 Arguments = new Dictionary<Argument, object>()
                 {
-                    { Argument.UserName, package.Arguments[Argument.UserName] },
-                    { Argument.UserID, userInfo.ID }
+                    { Argument.IsAdmitted, false }
                 }
             };
 
-            PackageManag.SendPackage(sender, responsePackage, null);
-
-            PackageArgs sendPackage = new PackageArgs()
+            string userName = package.Arguments[Argument.UserName] as string;
+            if (UserInfoByUserName.ContainsKey(userName))
             {
-                PackageType = PackageType.Event,
-                Event = Event.New_User,
-                Arguments = new Dictionary<Argument, object>()
+                responsePackage.Arguments.Add(Argument.Message, "Sorry, but \"" + userName + "\" is already taken...");
+            }
+            else
+            {
+                UserInfo userInfo = new UserInfo(UserInfoBySocket.Count, userName, sender);
+                UserInfoBySocket.Add(sender, userInfo);
+                UserInfoByUserName.Add(userInfo.UserName, userInfo);
+
+                responsePackage.Arguments.Add(Argument.UserID, UserInfoBySocket.Count);
+                responsePackage.Arguments.Add(Argument.UserName, userName);
+                responsePackage.Arguments[Argument.IsAdmitted] = true;
+
+                PackageArgs sendPackage = new PackageArgs()
+                {
+                    PackageType = PackageType.Event,
+                    Event = Event.New_User,
+                    Arguments = new Dictionary<Argument, object>()
                     {
-                        { Argument.UserName, UserInfoBySocket[sender].UserName }
+                        { Argument.UserName, userName }
                     }
-            };
+                };
 
-            BroadcastMessage(sendPackage, sender);
-
-            AddingMessageQuery.Add(new SystemEvent(userInfo.UserName, true));
+                BroadcastMessage(sendPackage, sender);
+                AddingMessageQuery.Add(new SystemEvent(userName, true));
+            }
+            PackageManag.SendPackage(sender, responsePackage, null);          
         }
 
         private void GetLastMessages(Socket sender)

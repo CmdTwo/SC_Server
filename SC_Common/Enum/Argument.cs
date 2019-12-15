@@ -11,5 +11,7 @@
         MessageList,
         MessageObj,
         IsPM,
+        IsAdmitted,
+        IP
     }
 }

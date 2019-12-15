@@ -41,7 +41,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ControlChars.cs" />
+    <Compile Include="ChatCommandHelper.cs" />
     <Compile Include="Messages\SystemMessage.cs" />
     <Compile Include="Messages\UserMessage.cs" />
     <Compile Include="Enum\Command.cs" />

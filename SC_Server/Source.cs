@@ -23,7 +23,7 @@ namespace SC_Server
             //    Command = Command.Send_Message,
             //    Arguments = new Dictionary<Argument, object>()
             //    {
-            //        { Argument.MessageObj, new UserMessage(0, "ff", "!auth fff fff") },
+            //        { Argument.MessageObj, new UserMessage(0, "ff", "!ban fff fff") },
             //    }
             //};
 
