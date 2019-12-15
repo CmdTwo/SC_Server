@@ -6,8 +6,10 @@
         UserID,
         Value,
         UserName,
+        AuthUserName,
         Message,
         MessageList,
         MessageObj,
+        IsPM,
     }
 }

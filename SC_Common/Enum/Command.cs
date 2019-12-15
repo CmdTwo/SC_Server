@@ -3,11 +3,15 @@
     public enum Command : byte
     {
         NaN = 0,
-        Test,
         Send_Message,
-        Upload_File,
+        Send_PM,
+        Authorization,
+        Kick,
+        Ban,
         Exit,
         User_Setup,
-        Get_Last_Messages
+        Get_Last_Messages,
+        IvalidCommand,
+        CommandResponse
     }
 }

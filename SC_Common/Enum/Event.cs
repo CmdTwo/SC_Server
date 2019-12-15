@@ -5,6 +5,7 @@
         NaN = 0,
         New_User,
         New_Message,
+        New_PM,
         User_Left,
     }
 }

@@ -135,16 +135,21 @@ namespace SC_Common
                 try
                 {
                     read = state.Handler.EndReceive(result);
+                    if (read == 0 && state.PackageSize == 0)
+                        throw new Exception("Unknow exception!");
                 }
                 catch(Exception ex)
                 {
-                    Register.WriteLog(ex.Message, Register.LogType.Error);
+                    Register.WriteLog(ex.Message, Register.LogType.Warning);
                     HasGotExceptionEvent?.Invoke(ex, state.Handler);
                     return;
                 }
 
+              
+
                 state.ReadBytes += read;
                 Register.WriteLog("Read bytes " + read + " of " + state.PackageSize + "...");
+
 
                 if (state.ReadBytes != state.PackageSize)
                 {
